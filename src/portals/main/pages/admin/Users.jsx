@@ -351,7 +351,7 @@ function StaffModal({ open, onClose, onSaved, editStaff, workshopRoles, branch }
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="Min. 8 characters"
-                  className="input-field pr-10"
+                  className="input-field pr-10 no-caps"
                 />
                 <button type="button" onClick={() => setShowPass(s => !s)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -418,7 +418,7 @@ function StaffModal({ open, onClose, onSaved, editStaff, workshopRoles, branch }
                 }}
                 placeholder="4-digit PIN"
                 maxLength={4}
-                className="input-field pr-10 font-mono tracking-widest"
+                className="input-field pr-10 font-mono tracking-widest no-caps"
               />
               <button type="button" onClick={() => setShowPin(s => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -501,7 +501,7 @@ function PinResetModal({ open, staff, onClose, onSaved }) {
             value={pin}
             onChange={e => setPin(e.target.value.replace(/\D/g, '').substring(0, 4))}
             placeholder="New 4-digit PIN"
-            className="input-field pr-10 font-mono tracking-widest"
+            className="input-field pr-10 font-mono tracking-widest no-caps"
             maxLength={4}
           />
           <button type="button" onClick={() => setShowPin(s => !s)}
