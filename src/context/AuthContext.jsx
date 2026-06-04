@@ -6,6 +6,8 @@
 //  - TOKEN_REFRESHED never re-fetches profile or sets loading = true
 //  - setLoading(false) is called in ALL code paths
 //  - mounted ref prevents state updates after unmount
+//  - Profile fetch retries up to 5 times with backoff for new registrations
+//    (race condition: Supabase signs in before register_new_workshop RPC completes)
 //  - useAuth hook lives in src/hooks/useAuth.js — NOT exported from here
 //  - AuthContext exported as named export with createContext(null)
 
@@ -13,7 +15,6 @@ import { createContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
 // SECTION: Context creation
-// Must be createContext(null) — not createContext() — so useAuth can detect missing provider
 export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -25,36 +26,68 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   // SECTION: Refs
-  const fetchingRef = useRef(false)   // prevents concurrent profile fetches
-  const mountedRef  = useRef(true)    // prevents state updates after unmount
-  mountedRef.currentBranch = null     // tracks branch for visibility handler
+  const fetchingRef = useRef(false)
+  const mountedRef  = useRef(true)
+  mountedRef.currentBranch = null
 
-  // SECTION: Profile fetch helper
+  // SECTION: Profile fetch with retry
+  // New registrations: Supabase fires SIGNED_IN before register_new_workshop RPC
+  // finishes writing the profile row. We retry up to 5 times with increasing
+  // delays (500ms, 1s, 2s, 3s, 4s) to give the RPC time to complete.
   async function fetchProfile(userId) {
     if (fetchingRef.current || !mountedRef.current) return
     fetchingRef.current = true
 
-    try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+    const MAX_RETRIES = 5
+    const DELAYS = [500, 1000, 2000, 3000, 4000] // ms between retries
 
-      if (profileError || !profileData) {
-        console.error('[AuthContext] Profile fetch error:', profileError)
-        if (mountedRef.current) {
-          setProfile(null)
-          setBranch(null)
+    try {
+      let profileData = null
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+
+        // Wait before retrying (not before first attempt)
+        if (attempt > 0) {
+          await new Promise(r => setTimeout(r, DELAYS[attempt - 1]))
+          if (!mountedRef.current) return
         }
-        return
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()   // maybeSingle returns null instead of error when 0 rows
+
+        if (data) {
+          profileData = data
+          break
+        }
+
+        // Genuine DB error (not just missing row) — stop retrying
+        if (error && error.code !== 'PGRST116') {
+          console.error('[AuthContext] Profile fetch error:', error)
+          break
+        }
+
+        // Profile not found yet — will retry if attempts remain
+        if (attempt < MAX_RETRIES) {
+          console.log(`[AuthContext] Profile not found yet, retrying (${attempt + 1}/${MAX_RETRIES})…`)
+        } else {
+          console.error('[AuthContext] Profile still not found after all retries for user:', userId)
+        }
       }
 
       if (!mountedRef.current) return
+
+      if (!profileData) {
+        setProfile(null)
+        setBranch(null)
+        return
+      }
+
       setProfile(profileData)
 
-      // Fetch branch for trial checks in PortalLayout
-      // Use maybeSingle() — returns null instead of error when no rows found
+      // Fetch branch
       const { data: branchData, error: branchError } = await supabase
         .from('branches')
         .select('*')
@@ -86,7 +119,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     mountedRef.current = true
 
-    // Get initial session once
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mountedRef.current) return
 
@@ -95,47 +127,39 @@ export function AuthProvider({ children }) {
         await fetchProfile(session.user.id)
       }
 
-      // CRITICAL: always resolve loading regardless of outcome
       if (mountedRef.current) setLoading(false)
     })
 
-    // Listen for subsequent auth events
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mountedRef.current) return
 
         if (event === 'SIGNED_IN') {
-          // Always fetch profile on SIGNED_IN — fetchingRef prevents duplicate fetches
           if (session?.user) {
             setUser(session.user)
             await fetchProfile(session.user.id)
+            if (mountedRef.current) setLoading(false)
           }
         } else if (event === 'TOKEN_REFRESHED') {
-          // Silent update only — never re-fetch profile or set loading = true
           if (session?.user) setUser(session.user)
         } else if (event === 'SIGNED_OUT') {
           setUser(null)
           setProfile(null)
           setBranch(null)
         }
-        // PASSWORD_RECOVERY handled in UpdatePassword component
       }
     )
 
-    // Re-validate session when user switches back to this tab
-    // This handles the case where storage events caused auth state to drift
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!mountedRef.current) return
           if (session?.user) {
             setUser(session.user)
-            // Only re-fetch profile if branch is missing (indicates state was reset)
             if (!mountedRef.currentBranch) {
               fetchProfile(session.user.id)
             }
           } else {
-            // Session genuinely gone — clear state
             setUser(null)
             setProfile(null)
             setBranch(null)
