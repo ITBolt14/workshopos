@@ -1,9 +1,7 @@
 // src/lib/supabase.js
 // Management portal Supabase client.
-// Uses a custom storage adapter that wraps localStorage but suppresses
-// the 'storage' event that fires when workshop portal clears sessionStorage.
-// This prevents AuthContext from resetting when the workshop portal
-// modifies any storage.
+// SECURITY: Anon key only — never service role key.
+// Uses explicit storageKey to prevent conflicts with the workshop client.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -17,21 +15,10 @@ if (!supabaseUrl || !supabaseAnon) {
   )
 }
 
-// SECTION: Custom storage adapter
-// Reads/writes to localStorage normally but prevents Supabase from
-// registering its own window 'storage' event listener.
-// This stops cross-tab and cross-portal storage events from
-// triggering auth state resets in the management portal.
 const customStorage = {
-  getItem: (key) => {
-    try { return localStorage.getItem(key) } catch { return null }
-  },
-  setItem: (key, value) => {
-    try { localStorage.setItem(key, value) } catch {}
-  },
-  removeItem: (key) => {
-    try { localStorage.removeItem(key) } catch {}
-  },
+  getItem:    (key) => { try { return localStorage.getItem(key) } catch { return null } },
+  setItem:    (key, value) => { try { localStorage.setItem(key, value) } catch {} },
+  removeItem: (key) => { try { localStorage.removeItem(key) } catch {} },
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnon, {
@@ -40,6 +27,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnon, {
     autoRefreshToken:   true,
     detectSessionInUrl: true,
     multiTab:           false,
+    // Explicit storage key — prevents any conflict with the workshop client
+    storageKey:         'workshopos-main-auth',
     storage:            customStorage,
   },
 })

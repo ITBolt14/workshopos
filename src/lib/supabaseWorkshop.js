@@ -1,9 +1,7 @@
 // src/lib/supabaseWorkshop.js
 // Separate Supabase client for the workshop portal ONLY.
-// Auth persistence is completely disabled — the workshop portal
-// uses PIN-based localStorage auth, never Supabase auth sessions.
-// This prevents the workshop portal from interfering with the
-// management portal's authenticated session.
+// Uses a unique storageKey so it never conflicts with the main portal client.
+// Auth persistence fully disabled — workshop uses PIN-based sessionStorage only.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -12,14 +10,20 @@ const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabaseWorkshop = createClient(supabaseUrl, supabaseAnon, {
   auth: {
-    persistSession:    false,  // Never store a session — workshop uses PIN only
-    autoRefreshToken:  false,  // No token to refresh
-    detectSessionInUrl: false, // Never read auth tokens from URL
+    persistSession:     false,
+    autoRefreshToken:   false,
+    detectSessionInUrl: false,
+    // Unique storage key prevents the "Multiple GoTrueClient instances" conflict
+    // with the main portal client which uses the default key
+    storageKey:         'workshopos-workshop-auth',
     storage: {
-      // Dummy storage — prevents any localStorage reads/writes for auth
       getItem:    () => null,
       setItem:    () => {},
       removeItem: () => {},
     },
   },
+  // Unique global key also prevents internal singleton conflicts
+  global: {
+    headers: { 'x-client-info': 'workshopos-workshop' }
+  }
 })
