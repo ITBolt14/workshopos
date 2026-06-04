@@ -9,7 +9,6 @@ import Dashboard     from './pages/Dashboard'
 import JobList       from './pages/jobs/JobList'
 import CheckInWizard from './pages/jobs/checkin/CheckInWizard'
 import JobDetail     from './pages/jobs/detail/JobDetail'
-import QRSticker     from './pages/jobs/QRSticker'
 import FloorMonitor  from './pages/monitor/FloorMonitor'
 import Users         from './pages/admin/Users'
 import StageTemplates from './pages/admin/StageTemplates'
@@ -38,7 +37,6 @@ export default function MainPortal() {
         <Route path="jobs"             element={<JobList />} />
         <Route path="jobs/new"         element={<CheckInWizard />} />
         <Route path="jobs/:id"         element={<JobDetail />} />
-        <Route path="jobs/:id/sticker" element={<QRSticker />} />
         <Route path="monitor"          element={<FloorMonitor />} />
         <Route path="admin/users"      element={<Users />} />
         <Route path="admin/stages"     element={<StageTemplates />} />
