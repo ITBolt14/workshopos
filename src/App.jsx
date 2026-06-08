@@ -25,7 +25,6 @@ import PortalLayout from './layouts/PortalLayout'
 
 // MAIN PORTAL
 import MainPortal from './portals/main/MainPortal'
-import QRSticker  from './portals/main/pages/jobs/QRSticker'
 
 // WORKSHOP PORTAL — completely independent, no Supabase auth
 import WorkshopPortal from './portals/workshop/WorkshopPortal'
@@ -102,9 +101,6 @@ export default function App() {
             <Route path="/update-password" element={<UpdatePassword />} />
             <Route path="/trial-expired"   element={<TrialExpired />} />
             <Route path="/unauthorized"    element={<Unauthorized />} />
-
-            {/* QR STICKER — standalone, no shell, opens in new tab */}
-            <Route path="/main/jobs/:id/sticker" element={<QRSticker />} />
 
             {/* MANAGEMENT PORTAL — PortalLayout handles auth guards */}
             <Route

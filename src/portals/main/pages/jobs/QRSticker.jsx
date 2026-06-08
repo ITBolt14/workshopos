@@ -1,71 +1,32 @@
 // src/portals/main/pages/jobs/QRSticker.jsx
-// Print-optimised QR sticker. Opens in new tab.
-//
-// AUTH STRATEGY FOR NEW TAB:
-// This page opens in a new tab where AuthContext is also mounted.
-// AuthContext handles INITIAL_SESSION/SIGNED_IN and loads the session
-// into Supabase's in-memory state. By the time this component mounts
-// and runs its useEffect, the session is already in memory.
-// We therefore use getSession() directly — it reliably returns the
-// session once AuthContext has processed the auth event.
-// We poll briefly to handle the rare case where this component mounts
-// before AuthContext has finished processing.
+// QR sticker page — rendered in the same tab inside the main portal.
+// Uses useAuth() like every other page. No session complexity needed.
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { Printer } from 'lucide-react'
+import { Printer, ArrowLeft } from 'lucide-react'
 import { supabase } from '../../../../lib/supabase'
+import { useAuth } from '../../../../hooks/useAuth'
 
 export default function QRSticker() {
-  const { id } = useParams()
+  const { id }       = useParams()
+  const navigate     = useNavigate()
+  const { profile }  = useAuth()
   const [job,     setJob]     = useState(null)
   const [vehicle, setVehicle] = useState(null)
   const [branch,  setBranch]  = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
 
   useEffect(() => {
-    let cancelled = false
-
-    async function init() {
-      // Poll getSession() — by the time this component mounts,
-      // AuthContext has already processed the auth event and loaded
-      // the session into memory. getSession() is reliable here
-      // (unlike on raw page load where memory is empty).
-      // We poll up to 10 times × 500ms = 5 seconds max.
-      let session = null
-      for (let i = 0; i < 10; i++) {
-        const { data } = await supabase.auth.getSession()
-        if (data?.session) { session = data.session; break }
-        await new Promise(r => setTimeout(r, 500))
-        if (cancelled) return
-      }
-
-      if (!session) {
-        window.location.href = '/login'
-        return
-      }
-
-      if (cancelled) return
-      await fetchStickerData()
-    }
-
-    async function fetchStickerData() {
-      const { data: jobData, error: jobErr } = await supabase
+    async function fetchData() {
+      const { data: jobData } = await supabase
         .from('jobs')
         .select('id, job_number, qr_token, check_in_date, branch_id, vehicle_id')
         .eq('id', id)
         .maybeSingle()
 
-      if (cancelled) return
-
-      if (jobErr || !jobData) {
-        setError('Job not found or access denied')
-        setLoading(false)
-        return
-      }
-
+      if (!jobData) { setLoading(false); return }
       setJob(jobData)
 
       const [vehicleRes, branchRes] = await Promise.all([
@@ -77,16 +38,13 @@ export default function QRSticker() {
           .eq('id', jobData.branch_id).maybeSingle(),
       ])
 
-      if (cancelled) return
-
       setVehicle(vehicleRes.data)
       setBranch(branchRes.data)
       setLoading(false)
     }
 
-    init()
-    return () => { cancelled = true }
-  }, [id])
+    if (profile) fetchData()
+  }, [id, profile])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -98,10 +56,8 @@ export default function QRSticker() {
     </div>
   )
 
-  if (error || !job) return (
-    <div className="p-8 text-center text-red-500">
-      {error || 'Job not found'}
-    </div>
+  if (!job) return (
+    <div className="p-8 text-center text-red-500">Job not found</div>
   )
 
   const qrValue = `${window.location.origin}/workshop/scan/${job.qr_token}`
@@ -125,16 +81,21 @@ export default function QRSticker() {
 
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-8">
 
+        {/* SECTION: Action buttons */}
         <div className="flex gap-3 mb-6 print:hidden">
-          <button onClick={() => window.print()}
+          <button
+            onClick={() => navigate(`/main/jobs/${id}`)}
+            className="btn-secondary flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" /> Back to Job
+          </button>
+          <button
+            onClick={() => window.print()}
             className="btn-primary flex items-center gap-2">
             <Printer className="w-4 h-4" /> Print Sticker
           </button>
-          <button onClick={() => window.close()} className="btn-secondary">
-            Close
-          </button>
         </div>
 
+        {/* SECTION: Sticker card — this is all that prints */}
         <div id="sticker-card" className="bg-white rounded-2xl overflow-hidden shadow-xl w-80">
           <div className="bg-blue-600 px-5 py-3">
             <p className="text-white font-bold text-center text-sm tracking-wide">

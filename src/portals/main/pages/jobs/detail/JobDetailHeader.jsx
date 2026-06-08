@@ -120,7 +120,7 @@ export default function JobDetailHeader({ job, vehicle, insurer, editMode, onEdi
           </button>
 
           <button
-            onClick={() => window.open(`/main/jobs/${job?.id}/sticker`, '_blank')}
+            onClick={() => window.location.href = `/main/jobs/${job?.id}/sticker`}
             className="btn-secondary flex items-center gap-2 text-sm"
           >
             <Printer className="w-3.5 h-3.5" /> QR Sticker

@@ -13,6 +13,7 @@ import FloorMonitor  from './pages/monitor/FloorMonitor'
 import Users         from './pages/admin/Users'
 import StageTemplates from './pages/admin/StageTemplates'
 import Settings       from './pages/admin/Settings'
+import QRSticker     from './pages/jobs/QRSticker'
 
 // SECTION: App shell
 function AppShell({ children }) {
@@ -41,6 +42,7 @@ export default function MainPortal() {
         <Route path="admin/users"      element={<Users />} />
         <Route path="admin/stages"     element={<StageTemplates />} />
         <Route path="admin/settings"   element={<Settings />} />
+        <Route path="jobs/:id/sticker"  element={<QRSticker />} />
         <Route path="*"                element={<Navigate to="/main" replace />} />
       </Routes>
     </AppShell>
