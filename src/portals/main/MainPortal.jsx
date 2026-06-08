@@ -32,19 +32,26 @@ function AppShell({ children }) {
 // SECTION: Routes
 export default function MainPortal() {
   return (
-    <AppShell>
-      <Routes>
-        <Route index                   element={<Dashboard />} />
-        <Route path="jobs"             element={<JobList />} />
-        <Route path="jobs/new"         element={<CheckInWizard />} />
-        <Route path="jobs/:id"         element={<JobDetail />} />
-        <Route path="monitor"          element={<FloorMonitor />} />
-        <Route path="admin/users"      element={<Users />} />
-        <Route path="admin/stages"     element={<StageTemplates />} />
-        <Route path="admin/settings"   element={<Settings />} />
-        <Route path="jobs/:id/sticker"  element={<QRSticker />} />
-        <Route path="*"                element={<Navigate to="/main" replace />} />
-      </Routes>
-    </AppShell>
+    <Routes>
+      {/* Sticker outside AppShell — no sidebar/topbar so print works cleanly */}
+      <Route path="jobs/:id/sticker" element={<QRSticker />} />
+
+      {/* All other routes inside AppShell */}
+      <Route path="*" element={
+        <AppShell>
+          <Routes>
+            <Route index                 element={<Dashboard />} />
+            <Route path="jobs"           element={<JobList />} />
+            <Route path="jobs/new"       element={<CheckInWizard />} />
+            <Route path="jobs/:id"       element={<JobDetail />} />
+            <Route path="monitor"        element={<FloorMonitor />} />
+            <Route path="admin/users"    element={<Users />} />
+            <Route path="admin/stages"   element={<StageTemplates />} />
+            <Route path="admin/settings" element={<Settings />} />
+            <Route path="*"              element={<Navigate to="/main" replace />} />
+          </Routes>
+        </AppShell>
+      } />
+    </Routes>
   )
 }

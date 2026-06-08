@@ -31,7 +31,7 @@ function TrialBanner({ branch }) {
   }
 
   return (
-    <div className={`${bgClass} text-white text-sm font-medium text-center py-2 px-4`}>
+    <div className={`${bgClass} text-white text-sm font-medium text-center py-2 px-4 print:hidden`}>
       {label} — Contact IT Legends to continue after your trial
     </div>
   )

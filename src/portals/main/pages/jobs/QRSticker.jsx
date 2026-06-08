@@ -1,26 +1,21 @@
 // src/portals/main/pages/jobs/QRSticker.jsx
-// QR sticker page — rendered in the same tab inside the main portal.
-// Uses useAuth() like every other page. No session complexity needed.
+// QR sticker page — inside the main portal shell, uses useAuth() like any other page.
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { Printer, ArrowLeft } from 'lucide-react'
 import { supabase } from '../../../../lib/supabase'
-import { useAuth } from '../../../../hooks/useAuth'
 
 export default function QRSticker() {
-  const { id }       = useParams()
-  const navigate     = useNavigate()
+  const { id }    = useParams()
+  const navigate  = useNavigate()
   const [job,     setJob]     = useState(null)
   const [vehicle, setVehicle] = useState(null)
   const [branch,  setBranch]  = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // PortalLayout guarantees the user is authenticated before this renders.
-    // profile is populated by AuthContext before PortalLayout allows rendering.
-    // No auth event handling needed — just fetch the data directly.
     async function fetchData() {
       const { data: jobData } = await supabase
         .from('jobs')
@@ -49,7 +44,7 @@ export default function QRSticker() {
   }, [id])
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="flex items-center justify-center p-8">
       <div className="text-center">
         <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent
                         rounded-full animate-spin mx-auto mb-3" />
@@ -66,32 +61,22 @@ export default function QRSticker() {
 
   return (
     <>
+      {/* SECTION: Print styles
+          When printing, hide everything on the page EXCEPT #sticker-card.
+          Using a class-based approach so the portal shell (sidebar, topbar)
+          is also hidden without affecting the sticker card itself. */}
       <style>{`
         @media print {
-          /* Hide everything including the portal shell */
-          body > #root > * { display: none !important; }
-          /* Show only the sticker card */
-          #sticker-print-wrapper { display: block !important; }
-          #sticker-print-wrapper * { visibility: visible !important; }
-          #sticker-card {
-            position: fixed !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important;
-            margin: 0 !important; padding: 0 !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-          }
-          /* Single page */
-          @page { margin: 0; size: auto; }
+          body { margin: 0; padding: 0; }
+          .print-hidden { display: none !important; }
+          @page { size: A4 portrait; margin: 10mm; }
         }
       `}</style>
-      {/* Wrapper targeted by print CSS */}
-      <div id="sticker-print-wrapper" style={{display:'contents'}}>
 
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-8">
+      <div className="bg-gray-100 flex flex-col items-center justify-center p-8">
 
-        {/* SECTION: Action buttons */}
-        <div className="flex gap-3 mb-6 print:hidden">
+        {/* SECTION: Action buttons — hidden on print */}
+        <div className="flex gap-3 mb-6 print-hidden">
           <button
             onClick={() => navigate(`/main/jobs/${id}`)}
             className="btn-secondary flex items-center gap-2">
@@ -104,7 +89,7 @@ export default function QRSticker() {
           </button>
         </div>
 
-        {/* SECTION: Sticker card — this is all that prints */}
+        {/* SECTION: Sticker card — only this prints */}
         <div id="sticker-card" className="bg-white rounded-2xl overflow-hidden shadow-xl w-80">
           <div className="bg-blue-600 px-5 py-3">
             <p className="text-white font-bold text-center text-sm tracking-wide">
@@ -144,7 +129,6 @@ export default function QRSticker() {
         </div>
 
       </div>
-    </div>
     </>
   )
 }

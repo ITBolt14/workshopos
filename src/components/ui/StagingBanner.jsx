@@ -13,7 +13,7 @@ export default function StagingBanner() {
   const bg    = env === 'staging' ? 'bg-amber-500' : 'bg-purple-600'
 
   return (
-    <div className={`relative w-full z-50 ${bg}
+    <div className={`relative w-full z-50 ${bg} print:hidden
                      text-white text-xs font-bold text-center py-1
                      tracking-widest shadow-md flex-shrink-0`}>
       ⚠️ {label} ENVIRONMENT — Not for client use
