@@ -17,18 +17,28 @@ export default function QRSticker() {
 
   useEffect(() => {
     async function fetchData() {
+      // Wait for Supabase session to load — the sticker opens in a new tab
+      // and the auth token needs to be read from localStorage before any
+      // RLS-protected queries can succeed.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        // No session — redirect to login, preserve sticker URL for after login
+        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+        return
+      }
+
       const { data: jobData } = await supabase
         .from('jobs')
         .select('id, job_number, qr_token, check_in_date, branch_id, vehicle_id')
         .eq('id', id)
-        .single()
+        .maybeSingle()
 
       if (!jobData) { setLoading(false); return }
       setJob(jobData)
 
       const [vehicleRes, branchRes] = await Promise.all([
-        supabase.from('vehicles').select('registration, make, model, owner_name').eq('id', jobData.vehicle_id).single(),
-        supabase.from('branches').select('name').eq('id', jobData.branch_id).single(),
+        supabase.from('vehicles').select('registration, make, model, owner_name').eq('id', jobData.vehicle_id).maybeSingle(),
+        supabase.from('branches').select('name').eq('id', jobData.branch_id).maybeSingle(),
       ])
 
       setVehicle(vehicleRes.data)

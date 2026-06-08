@@ -116,7 +116,7 @@ export default function WorkshopLogin() {
         .from('workshop_roles')
         .select('id, name, colour')
         .eq('id', profile.workshop_role_id)
-        .single()
+        .maybeSingle()
       workshopRole = roleData || null
     }
 

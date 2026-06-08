@@ -1,11 +1,14 @@
 // src/main.jsx
 // React entry point.
-// StrictMode is intentionally omitted — Supabase auth listeners
-// fire twice in StrictMode (React 18 dev) which causes double-fetch
-// issues in AuthContext. Removed per project spec.
+// Sentry is initialised BEFORE rendering so all errors are captured from startup.
+// StrictMode is intentionally omitted — Supabase auth listeners fire twice in
+// StrictMode (React 18 dev) causing double-fetch issues in AuthContext.
 
-import { createRoot } from 'react-dom/client'
+import { createRoot }  from 'react-dom/client'
+import App             from './App'
 import './index.css'
-import App from './App'
+import { initSentry }  from './lib/sentry'
+
+initSentry()
 
 createRoot(document.getElementById('root')).render(<App />)

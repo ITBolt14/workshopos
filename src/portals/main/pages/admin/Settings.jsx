@@ -31,7 +31,7 @@ export default function Settings() {
       .from('branches')
       .select('name, city, phone, job_prefix, workshop_code')
       .eq('id', branchId)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         if (data) {
           setName(data.name || '')

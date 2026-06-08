@@ -207,7 +207,7 @@ export default function CheckInWizard() {
             owner_email: ownerEmail || null,
           })
           .select('id')
-          .single()
+          .maybeSingle()
         if (vErr) throw new Error('Failed to save vehicle: ' + vErr.message)
         vehicleId = newVehicle.id
       }
@@ -234,7 +234,7 @@ export default function CheckInWizard() {
           created_by:           profile.id,
         })
         .select('id')
-        .single()
+        .maybeSingle()
       if (jobErr) throw new Error('Failed to create job: ' + jobErr.message)
 
       // Insert claim if insurance job

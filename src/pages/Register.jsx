@@ -10,6 +10,7 @@ import {
   User, Lock, ChevronRight, ChevronLeft
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { setRegistrationInProgress } from '../context/AuthContext'
 import PasswordInput from '../components/ui/PasswordInput'
 import PasswordStrength, { isPasswordValid } from '../components/ui/PasswordStrength'
 
@@ -169,6 +170,10 @@ export default function Register() {
     setSubmitting(true)
 
     try {
+      // Lock AuthContext so SIGNED_IN doesn't try to fetch profile
+      // before register_new_workshop has finished creating it.
+      setRegistrationInProgress(true)
+
       // 1. Create Supabase auth account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
@@ -209,10 +214,14 @@ export default function Register() {
 
       if (regError) {
         console.error('[Register] RPC error:', regError)
+        setRegistrationInProgress(false)
         toast.error('Failed to create workshop. Please try again.')
         setSubmitting(false)
         return
       }
+
+      // Profile now exists — release the lock so AuthContext can fetch it
+      setRegistrationInProgress(false)
 
       const trialEndsAt = regData?.trial_ends || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
 
@@ -224,6 +233,7 @@ export default function Register() {
 
     } catch (err) {
       console.error('[Register] Unexpected error:', err)
+      setRegistrationInProgress(false)
       toast.error('Something went wrong. Please try again.')
       setSubmitting(false)
     }

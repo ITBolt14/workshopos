@@ -76,16 +76,21 @@ export default function PortalLayout({ children }) {
   const { user, profile, branch, loading, signOut, isSuperAdmin } = useAuth()
   const navigate  = useNavigate()
   const location  = useLocation()
-  const [timedOut, setTimedOut] = useState(false)
+  const [stuckTimeout, setStuckTimeout] = useState(false)
 
-  // 3-second safety timeout — forces resolve if auth never completes
+  // Safety timeout — fires if auth is STILL loading after 10 seconds with no user.
+  // Registration race condition is now handled at source (Register.jsx lock),
+  // so 10 seconds is more than enough for normal logins (~1-2s).
+  // Only redirects if genuinely no user — never interrupts an active fetch.
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 3000)
-    return () => clearTimeout(timer)
-  }, [])
+    if (loading && !user) {
+      const timer = setTimeout(() => setStuckTimeout(true), 10000)
+      return () => clearTimeout(timer)
+    }
+  }, [loading, user])
 
-  // Once auth resolves (or times out), apply guards
-  const resolved = !loading || timedOut
+  // Resolved when: auth context finished loading, OR genuine stuck state
+  const resolved = !loading || stuckTimeout
 
   useEffect(() => {
     if (!resolved) return

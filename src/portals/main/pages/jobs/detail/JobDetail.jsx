@@ -43,7 +43,7 @@ export default function JobDetail() {
       .from('jobs')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (error || !jobData) {
       toast.error('Job not found')
@@ -56,10 +56,10 @@ export default function JobDetail() {
     // Fetch related data in parallel
     const promises = [
       jobData.vehicle_id
-        ? supabase.from('vehicles').select('*').eq('id', jobData.vehicle_id).single()
+        ? supabase.from('vehicles').select('*').eq('id', jobData.vehicle_id).maybeSingle()
         : Promise.resolve({ data: null }),
       jobData.insurer_id
-        ? supabase.from('insurers').select('*').eq('id', jobData.insurer_id).single()
+        ? supabase.from('insurers').select('*').eq('id', jobData.insurer_id).maybeSingle()
         : Promise.resolve({ data: null }),
       supabase.from('job_claims').select('*').eq('job_id', id).maybeSingle(),
     ]
