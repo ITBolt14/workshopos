@@ -33,9 +33,13 @@ export default function QRSticker() {
       async (event, session) => {
         if (didFetch) return // only fetch once
 
-        if (event === 'INITIAL_SESSION') {
+        // Handle both INITIAL_SESSION and SIGNED_IN —
+        // INITIAL_SESSION fires on first load when no prior session existed.
+        // SIGNED_IN fires when the page opens in a new tab while already logged in.
+        // Both provide a valid session and should trigger the data fetch.
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
           if (!session) {
-            // No session at all — redirect to login
+            // No session — redirect to login
             window.location.href = '/login'
             return
           }
