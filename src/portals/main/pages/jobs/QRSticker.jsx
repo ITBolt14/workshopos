@@ -12,13 +12,15 @@ import { useAuth } from '../../../../hooks/useAuth'
 export default function QRSticker() {
   const { id }       = useParams()
   const navigate     = useNavigate()
-  const { profile }  = useAuth()
   const [job,     setJob]     = useState(null)
   const [vehicle, setVehicle] = useState(null)
   const [branch,  setBranch]  = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // PortalLayout guarantees the user is authenticated before this renders.
+    // profile is populated by AuthContext before PortalLayout allows rendering.
+    // No auth event handling needed — just fetch the data directly.
     async function fetchData() {
       const { data: jobData } = await supabase
         .from('jobs')
@@ -43,8 +45,8 @@ export default function QRSticker() {
       setLoading(false)
     }
 
-    if (profile) fetchData()
-  }, [id, profile])
+    fetchData()
+  }, [id])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">

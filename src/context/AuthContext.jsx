@@ -127,29 +127,18 @@ export function AuthProvider({ children }) {
 
         console.log('[AuthContext] Event:', event)
 
-        if (event === 'INITIAL_SESSION') {
-          // Fires once on page load after Supabase reads session from localStorage.
-          // This is the reliable signal that auth state is known.
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+          // INITIAL_SESSION fires on page load in newer Supabase JS versions.
+          // SIGNED_IN fires in older versions and on explicit login.
+          // Both are handled identically — load profile and set loading false.
           if (session?.user) {
             setUser(session.user)
             if (!_registrationInProgress) {
               await fetchProfile(session.user.id)
             }
           }
-          // Always set loading false after INITIAL_SESSION — session is now known
+          // Always set loading false once we know the auth state
           if (mountedRef.current) setLoading(false)
-
-        } else if (event === 'SIGNED_IN') {
-          // Fires on login and when returning to tab after token refresh
-          if (session?.user) {
-            setUser(session.user)
-            if (!_registrationInProgress) {
-              const didFetch = await fetchProfile(session.user.id)
-              // Only set loading false here if INITIAL_SESSION hasn't already done it
-              // (loading would already be false in that case, this is a no-op)
-              if (mountedRef.current && didFetch) setLoading(false)
-            }
-          }
 
         } else if (event === 'TOKEN_REFRESHED') {
           // Token silently refreshed — update user object only, never re-fetch profile
