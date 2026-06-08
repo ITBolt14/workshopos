@@ -1,44 +1,23 @@
 // src/context/AuthContext.jsx
-// CRITICAL AUTH CONTEXT — read carefully before editing.
+// DEFINITIVE AUTH CONTEXT
 //
-// BUGS FIXED IN THIS VERSION:
+// KEY INSIGHT: In Supabase JS v2, getSession() returns the in-memory session
+// which may be null on first page load even if a valid token is in localStorage.
+// The INITIAL_SESSION event from onAuthStateChange is the correct and reliable
+// way to know when Supabase has finished reading the session from storage.
 //
-// BUG 1 — fetchingRef permanent lock
-//   fetchingRef.current is set to true at the top of fetchProfile but only
-//   reset in the `finally` block. If mountedRef.current is false on entry
-//   (component unmounted mid-fetch), the function returns early WITHOUT
-//   hitting finally — fetchingRef stays true permanently. On the next
-//   login attempt, fetchProfile is blocked forever → loading never resolves.
-//   FIX: Reset fetchingRef before every early return.
+// ARCHITECTURE:
+// - onAuthStateChange is the SINGLE source of truth for session state
+// - getSession() is only used as a fallback for pages that open in new tabs
+//   (QRSticker) where onAuthStateChange may not have fired yet
+// - INITIAL_SESSION event → load profile → set loading=false
+// - SIGNED_IN event → load profile (covers login after INITIAL_SESSION)
+// - TOKEN_REFRESHED → update user only, never re-fetch profile
+// - SIGNED_OUT → clear everything
 //
-// BUG 2 — SIGNED_IN fires setLoading(false) even when fetchProfile was blocked
-//   If fetchingRef was true when SIGNED_IN fired (because getSession was
-//   mid-fetch), fetchProfile returns immediately without setting profile/branch.
-//   But the SIGNED_IN handler still calls setLoading(false) after the blocked
-//   call, so the app shows the portal with profile=null.
-//   FIX: Only call setLoading(false) in SIGNED_IN if fetchProfile actually ran.
-//
-// BUG 3 — getSession races with SIGNED_IN on fresh login
-//   On fresh login, getSession (called on mount) may resolve with session=null
-//   before the auth token is written to storage, firing setLoading(false) with
-//   user=null. PortalLayout's 3s timeout sees user=null and redirects to /login.
-//   Then SIGNED_IN fires with the real session but the user is already at /login.
-//   FIX: getSession only calls setLoading(false) if it found a session OR if
-//   SIGNED_IN has not already fired. Track with a flag.
-//
-// BUG 4 — Login.jsx uses .single() which throws PGRST116 on missing profile
-//   Login.jsx fetches the profile for active/role checks using .single().
-//   If the profile doesn't exist (race on new registration), PGRST116 is thrown,
-//   Login.jsx calls signOut(), which fires SIGNED_OUT in AuthContext while
-//   fetchProfile retries are still running — causing state corruption.
-//   FIX: Login.jsx uses .maybeSingle() (fixed in Login.jsx below).
-//
-// Rules that remain enforced:
-//  - fetchingRef prevents concurrent profile fetches
-//  - TOKEN_REFRESHED never re-fetches profile or sets loading = true
-//  - setLoading(false) is called in ALL code paths
-//  - mounted ref prevents state updates after unmount
-//  - Profile fetch retries up to 7 times with backoff for new registrations
+// REGISTRATION LOCK:
+// Register.jsx sets _registrationInProgress = true before signUp so that
+// SIGNED_IN does not try to fetch the profile before the RPC has created it.
 
 import { createContext, useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
@@ -46,41 +25,32 @@ import { setSentryUser } from '../lib/sentry'
 
 export const AuthContext = createContext(null)
 
-// SECTION: Registration lock
-// Register.jsx sets this to true before signUp so that AuthContext
-// does not immediately try to fetch the profile when SIGNED_IN fires.
-// The RPC register_new_workshop must finish first.
-// Register.jsx sets it back to false after the RPC completes.
+// Registration lock — prevents profile fetch before register_new_workshop RPC completes
 let _registrationInProgress = false
 export const setRegistrationInProgress = (val) => { _registrationInProgress = val }
 
 export function AuthProvider({ children }) {
 
-  // SECTION: State
   const [user,    setUser]    = useState(null)
   const [profile, setProfile] = useState(null)
   const [branch,  setBranch]  = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // SECTION: Refs
   const fetchingRef      = useRef(false)
   const mountedRef       = useRef(true)
-  const signedInFiredRef = useRef(false) // tracks if SIGNED_IN event already handled
-  mountedRef.currentBranch = null
 
-  // SECTION: Profile fetch with retry
-  // Returns true if it ran to completion, false if it was blocked or aborted
+  // SECTION: Fetch profile + branch for a given user ID
+  // Returns true if completed, false if blocked or aborted
   async function fetchProfile(userId) {
-    // BUG 1 FIX: Don't lock fetchingRef on early returns
     if (fetchingRef.current) return false
     if (!mountedRef.current) return false
 
     fetchingRef.current = true
 
+    // Retry loop handles two cases:
+    // 1. New registration: profile doesn't exist yet (RPC still running)
+    // 2. Supabase cold start: first query after long idle takes extra time
     const MAX_RETRIES = 8
-    // Aggressive early retries, then back off.
-    // Total max wait: ~7.5 seconds — fast enough for user, long enough for Supabase cold starts.
-    // Most new registrations succeed on attempt 1 or 2 (within 1 second).
     const DELAYS = [200, 400, 600, 800, 1000, 1500, 2000, 2500]
 
     try {
@@ -98,10 +68,7 @@ export function AuthProvider({ children }) {
           .eq('id', userId)
           .maybeSingle()
 
-        if (data) {
-          profileData = data
-          break
-        }
+        if (data) { profileData = data; break }
 
         if (error && error.code !== 'PGRST116') {
           console.error('[AuthContext] Profile fetch error:', error)
@@ -111,131 +78,100 @@ export function AuthProvider({ children }) {
         if (attempt < MAX_RETRIES) {
           console.log(`[AuthContext] Profile not found, retrying (${attempt + 1}/${MAX_RETRIES})…`)
         } else {
-          console.error('[AuthContext] Profile not found after all retries for user:', userId)
-          // Report to Sentry so we know which users hit this
+          console.error('[AuthContext] Profile not found after all retries:', userId)
           const { captureError } = await import('../lib/sentry')
-          captureError(
-            new Error('Profile not found after all retries'),
-            { userId, attempt: MAX_RETRIES }
-          )
+          captureError(new Error('Profile not found after all retries'), { userId })
         }
       }
 
       if (!mountedRef.current) return false
 
       if (!profileData) {
-        setProfile(null)
-        setBranch(null)
-        return true // ran to completion, just no data
+        setProfile(null); setBranch(null)
+        return true
       }
 
       setProfile(profileData)
 
-      const { data: branchData, error: branchError } = await supabase
-        .from('branches')
-        .select('*')
-        .eq('id', profileData.branch_id)
-        .maybeSingle()
+      const { data: branchData, error: branchErr } = await supabase
+        .from('branches').select('*').eq('id', profileData.branch_id).maybeSingle()
 
       if (!mountedRef.current) return false
 
-      if (branchError) {
-        console.error('[AuthContext] Branch fetch error:', branchError)
+      if (branchErr) {
+        console.error('[AuthContext] Branch fetch error:', branchErr)
         setBranch(null)
       } else {
         setBranch(branchData)
-        mountedRef.currentBranch = branchData
         setSentryUser(profileData, branchData)
       }
 
       return true
 
     } catch (err) {
-      console.error('[AuthContext] Unexpected error during profile fetch:', err)
-      if (mountedRef.current) {
-        setProfile(null)
-        setBranch(null)
-      }
+      console.error('[AuthContext] Unexpected error:', err)
+      if (mountedRef.current) { setProfile(null); setBranch(null) }
       return true
     } finally {
       fetchingRef.current = false
     }
   }
 
-  // SECTION: Initial session + auth state listener
+  // SECTION: Auth state listener — single source of truth
   useEffect(() => {
     mountedRef.current = true
-    signedInFiredRef.current = false
-
-    // BUG 3 FIX: Only call setLoading(false) from getSession if SIGNED_IN
-    // has NOT already handled this session. On fresh login SIGNED_IN fires
-    // first — getSession resolves after with the same session but must NOT
-    // call setLoading(false) again (it would race with SIGNED_IN's fetch).
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mountedRef.current) return
-
-      // If SIGNED_IN already handled this, skip — it will call setLoading(false)
-      if (signedInFiredRef.current) return
-
-      if (session?.user) {
-        setUser(session.user)
-        await fetchProfile(session.user.id)
-      }
-
-      if (mountedRef.current) setLoading(false)
-    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mountedRef.current) return
 
-        if (event === 'SIGNED_IN') {
-          signedInFiredRef.current = true
+        console.log('[AuthContext] Event:', event)
+
+        if (event === 'INITIAL_SESSION') {
+          // Fires once on page load after Supabase reads session from localStorage.
+          // This is the reliable signal that auth state is known.
           if (session?.user) {
             setUser(session.user)
-
-            // If registration is in progress, don't fetch profile yet —
-            // register_new_workshop hasn't finished creating it.
-            // Register.jsx will set this back to false when the RPC completes,
-            // at which point the profile exists and we can fetch it normally
-            // on the next getSession call or manual trigger.
-            if (_registrationInProgress) {
-              // Still need to eventually call setLoading(false)
-              // Register.jsx will handle navigation; loading screen is fine here
-              return
+            if (!_registrationInProgress) {
+              await fetchProfile(session.user.id)
             }
-
-            // BUG 2 FIX: Only call setLoading(false) if fetchProfile actually ran
-            const didFetch = await fetchProfile(session.user.id)
-            if (mountedRef.current && didFetch) setLoading(false)
           }
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Never re-fetch profile on token refresh — causes infinite loop
-          if (session?.user) setUser(session.user)
-        } else if (event === 'SIGNED_OUT') {
-          signedInFiredRef.current = false
-          setUser(null)
-          setProfile(null)
-          setBranch(null)
-          // Ensure loading is false after sign out
+          // Always set loading false after INITIAL_SESSION — session is now known
           if (mountedRef.current) setLoading(false)
+
+        } else if (event === 'SIGNED_IN') {
+          // Fires on login and when returning to tab after token refresh
+          if (session?.user) {
+            setUser(session.user)
+            if (!_registrationInProgress) {
+              const didFetch = await fetchProfile(session.user.id)
+              // Only set loading false here if INITIAL_SESSION hasn't already done it
+              // (loading would already be false in that case, this is a no-op)
+              if (mountedRef.current && didFetch) setLoading(false)
+            }
+          }
+
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token silently refreshed — update user object only, never re-fetch profile
+          if (session?.user) setUser(session.user)
+
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null); setProfile(null); setBranch(null)
+          if (mountedRef.current) setLoading(false)
+          setSentryUser(null, null)
         }
       }
     )
 
+    // Visibility change — re-validate session when tab becomes active
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (!mountedRef.current) return
           if (session?.user) {
             setUser(session.user)
-            if (!mountedRef.currentBranch) {
-              fetchProfile(session.user.id)
-            }
           } else {
-            setUser(null)
-            setProfile(null)
-            setBranch(null)
+            setUser(null); setProfile(null); setBranch(null)
           }
         })
       }
@@ -250,13 +186,9 @@ export function AuthProvider({ children }) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // SECTION: Sign out
   async function signOut() {
     await supabase.auth.signOut()
-    setUser(null)
-    setProfile(null)
-    setBranch(null)
-    signedInFiredRef.current = false
+    setUser(null); setProfile(null); setBranch(null)
     setSentryUser(null, null)
   }
 

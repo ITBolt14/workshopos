@@ -1,7 +1,23 @@
 // src/lib/supabaseWorkshop.js
-// Separate Supabase client for the workshop portal ONLY.
-// Uses a unique storageKey so it never conflicts with the main portal client.
-// Auth persistence fully disabled — workshop uses PIN-based sessionStorage only.
+// Workshop portal Supabase client — WORKSHOP portal only.
+//
+// ═══════════════════════════════════════════════════════════════════
+// CRITICAL SUPABASE AUTH PATTERN — READ BEFORE EDITING
+// ═══════════════════════════════════════════════════════════════════
+// This client deliberately has NO auth persistence.
+// The workshop portal uses PIN-based auth stored in sessionStorage,
+// not Supabase auth. This client is used only for data queries
+// (jobs, stages, clocking) as the anon role.
+//
+// DO NOT add getSession() or onAuthStateChange calls to workshop
+// portal pages — they will always return null/no session by design.
+// ═══════════════════════════════════════════════════════════════════
+//
+// storageKey 'workshopos-workshop-auth' is UNIQUE to prevent conflicts
+// with the main portal client's 'workshopos-main-auth'.
+// The dummy storage implementation ensures no tokens are ever stored
+// or read, preventing the GoTrueClient from interfering with the
+// management portal's session.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -13,8 +29,6 @@ export const supabaseWorkshop = createClient(supabaseUrl, supabaseAnon, {
     persistSession:     false,
     autoRefreshToken:   false,
     detectSessionInUrl: false,
-    // Unique storage key prevents the "Multiple GoTrueClient instances" conflict
-    // with the main portal client which uses the default key
     storageKey:         'workshopos-workshop-auth',
     storage: {
       getItem:    () => null,
@@ -22,8 +36,7 @@ export const supabaseWorkshop = createClient(supabaseUrl, supabaseAnon, {
       removeItem: () => {},
     },
   },
-  // Unique global key also prevents internal singleton conflicts
   global: {
-    headers: { 'x-client-info': 'workshopos-workshop' }
-  }
+    headers: { 'x-client-info': 'workshopos-workshop' },
+  },
 })
