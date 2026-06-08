@@ -97,11 +97,12 @@ export function AuthProvider({ children }) {
     mountedRef.current = true
     loadingDoneRef.current = false
 
-    // Safety net — if nothing resolves in 15s, force loading done
+    // Safety net — force loading=false after 8s no matter what.
+    // Prevents infinite loading screen if fetchProfile hangs on Supabase cold start.
     const safetyTimer = setTimeout(() => {
       console.warn('[AuthContext] Safety timeout fired — forcing loading=false')
       doneLoading()
-    }, 15000)
+    }, 8000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -111,11 +112,17 @@ export function AuthProvider({ children }) {
         if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
           if (session?.user) {
             setUser(session.user)
+            // Set loading false immediately once we know the user is authenticated.
+            // fetchProfile runs after so the UI shows without waiting for the DB call.
+            // Profile/branch state updates reactively when fetchProfile completes.
+            doneLoading()
             if (!_registrationInProgress) {
-              await fetchProfile(session.user.id)
+              fetchProfile(session.user.id) // intentionally not awaited
             }
+          } else {
+            // No session — user is not logged in
+            doneLoading()
           }
-          doneLoading()
 
         } else if (event === 'TOKEN_REFRESHED') {
           if (session?.user) setUser(session.user)

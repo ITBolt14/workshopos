@@ -68,8 +68,11 @@ export default function QRSticker() {
     <>
       <style>{`
         @media print {
-          body * { visibility: hidden !important; }
-          #sticker-card, #sticker-card * { visibility: visible !important; }
+          /* Hide everything including the portal shell */
+          body > #root > * { display: none !important; }
+          /* Show only the sticker card */
+          #sticker-print-wrapper { display: block !important; }
+          #sticker-print-wrapper * { visibility: visible !important; }
           #sticker-card {
             position: fixed !important;
             top: 0 !important; left: 0 !important;
@@ -78,8 +81,12 @@ export default function QRSticker() {
             box-shadow: none !important;
             border-radius: 0 !important;
           }
+          /* Single page */
+          @page { margin: 0; size: auto; }
         }
       `}</style>
+      {/* Wrapper targeted by print CSS */}
+      <div id="sticker-print-wrapper" style={{display:'contents'}}>
 
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-8">
 
@@ -137,6 +144,7 @@ export default function QRSticker() {
         </div>
 
       </div>
+    </div>
     </>
   )
 }
