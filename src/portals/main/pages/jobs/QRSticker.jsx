@@ -17,13 +17,19 @@ export default function QRSticker() {
 
   useEffect(() => {
     async function fetchData() {
-      // Wait for Supabase session to load — the sticker opens in a new tab
-      // and the auth token needs to be read from localStorage before any
-      // RLS-protected queries can succeed.
-      const { data: { session } } = await supabase.auth.getSession()
+      // The sticker opens in a new tab. Supabase reads the session from
+      // localStorage but needs a moment on first load. We retry a few times
+      // before giving up, to handle slow storage reads on new tab open.
+      let session = null
+      for (let i = 0; i < 5; i++) {
+        const { data } = await supabase.auth.getSession()
+        if (data?.session) { session = data.session; break }
+        await new Promise(r => setTimeout(r, 300))
+      }
+
       if (!session) {
-        // No session — redirect to login, preserve sticker URL for after login
-        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+        // Genuinely no session — redirect to login
+        window.location.href = '/login'
         return
       }
 
