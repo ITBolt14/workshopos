@@ -1,13 +1,15 @@
 // src/portals/main/pages/jobs/QRSticker.jsx
 // Print-optimised QR sticker. Opens in new tab.
-// On print: only the sticker card is visible, everything else is hidden.
 //
-// SESSION STRATEGY FOR NEW TAB:
-// Opens in a new tab where AuthContext hasn't loaded yet.
-// We use onAuthStateChange and wait for INITIAL_SESSION which is the
-// reliable signal that Supabase has finished reading from localStorage.
-// This avoids the getSession() race condition where it returns null
-// before the storage read completes.
+// AUTH STRATEGY FOR NEW TAB:
+// This page opens in a new tab where AuthContext is also mounted.
+// AuthContext handles INITIAL_SESSION/SIGNED_IN and loads the session
+// into Supabase's in-memory state. By the time this component mounts
+// and runs its useEffect, the session is already in memory.
+// We therefore use getSession() directly — it reliably returns the
+// session once AuthContext has processed the auth event.
+// We poll briefly to handle the rare case where this component mounts
+// before AuthContext has finished processing.
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
@@ -24,39 +26,30 @@ export default function QRSticker() {
   const [error,   setError]   = useState(null)
 
   useEffect(() => {
-    let didFetch = false
+    let cancelled = false
 
-    // Use onAuthStateChange to wait for INITIAL_SESSION.
-    // This is the correct way to know when Supabase has loaded the session
-    // from localStorage — getSession() is unreliable on first page load.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (didFetch) return // only fetch once
-
-        // Handle both INITIAL_SESSION and SIGNED_IN —
-        // INITIAL_SESSION fires on first load when no prior session existed.
-        // SIGNED_IN fires when the page opens in a new tab while already logged in.
-        // Both provide a valid session and should trigger the data fetch.
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-          if (!session) {
-            // No session — redirect to login
-            window.location.href = '/login'
-            return
-          }
-          didFetch = true
-          await fetchStickerData()
-        }
+    async function init() {
+      // Poll getSession() — by the time this component mounts,
+      // AuthContext has already processed the auth event and loaded
+      // the session into memory. getSession() is reliable here
+      // (unlike on raw page load where memory is empty).
+      // We poll up to 10 times × 500ms = 5 seconds max.
+      let session = null
+      for (let i = 0; i < 10; i++) {
+        const { data } = await supabase.auth.getSession()
+        if (data?.session) { session = data.session; break }
+        await new Promise(r => setTimeout(r, 500))
+        if (cancelled) return
       }
-    )
 
-    // Safety timeout — if INITIAL_SESSION never fires after 8s, try anyway
-    const timeout = setTimeout(async () => {
-      if (didFetch) return
-      didFetch = true
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { window.location.href = '/login'; return }
+      if (!session) {
+        window.location.href = '/login'
+        return
+      }
+
+      if (cancelled) return
       await fetchStickerData()
-    }, 8000)
+    }
 
     async function fetchStickerData() {
       const { data: jobData, error: jobErr } = await supabase
@@ -64,6 +57,8 @@ export default function QRSticker() {
         .select('id, job_number, qr_token, check_in_date, branch_id, vehicle_id')
         .eq('id', id)
         .maybeSingle()
+
+      if (cancelled) return
 
       if (jobErr || !jobData) {
         setError('Job not found or access denied')
@@ -82,15 +77,15 @@ export default function QRSticker() {
           .eq('id', jobData.branch_id).maybeSingle(),
       ])
 
+      if (cancelled) return
+
       setVehicle(vehicleRes.data)
       setBranch(branchRes.data)
       setLoading(false)
     }
 
-    return () => {
-      subscription.unsubscribe()
-      clearTimeout(timeout)
-    }
+    init()
+    return () => { cancelled = true }
   }, [id])
 
   if (loading) return (
