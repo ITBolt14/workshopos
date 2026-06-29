@@ -18,17 +18,17 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
   const { branch } = useAuth()
   const [saving, setSaving] = useState(false)
 
-  // Editable fields
-  const [make,    setMake]    = useState(vehicle?.make    || '')
-  const [model,   setModel]   = useState(vehicle?.model   || '')
-  const [year,    setYear]    = useState(vehicle?.year?.toString() || '')
-  const [colour,  setColour]  = useState(vehicle?.colour  || '')
-  const [vin,     setVin]     = useState(vehicle?.vin     || '')
-  const [ownerName,  setOwnerName]  = useState(vehicle?.owner_name  || '')
-  const [ownerPhone, setOwnerPhone] = useState(vehicle?.owner_phone || '')
-  const [ownerEmail, setOwnerEmail] = useState(vehicle?.owner_email || '')
-  const [estCompletion, setEstCompletion] = useState(job?.estimated_completion || '')
-  const [specialInstructions, setSpecialInstructions] = useState(job?.special_instructions || '')
+  const [make,                setMake]               = useState(vehicle?.make    || '')
+  const [model,               setModel]              = useState(vehicle?.model   || '')
+  const [year,                setYear]               = useState(vehicle?.year?.toString() || '')
+  const [colour,              setColour]             = useState(vehicle?.colour  || '')
+  const [vin,                 setVin]                = useState(vehicle?.vin     || '')
+  const [ownerName,           setOwnerName]          = useState(vehicle?.owner_name  || '')
+  const [ownerPhone,          setOwnerPhone]         = useState(vehicle?.owner_phone || '')
+  const [ownerEmail,          setOwnerEmail]         = useState(vehicle?.owner_email || '')
+  const [estCompletion,       setEstCompletion]      = useState(job?.estimated_completion || '')
+  const [specialInstructions, setSpecialInstructions]= useState(job?.special_instructions || '')
+  const [liaisonInitials,     setLiaisonInitials]    = useState(job?.liaison_initials || '')
 
   useEffect(() => {
     if (vehicle) {
@@ -40,6 +40,7 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
     if (job) {
       setEstCompletion(job.estimated_completion || '')
       setSpecialInstructions(job.special_instructions || '')
+      setLiaisonInitials(job.liaison_initials || '')
     }
   }, [vehicle, job])
 
@@ -58,6 +59,7 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
       supabase.from('jobs').update({
         estimated_completion: estCompletion || null,
         special_instructions: specialInstructions || null,
+        liaison_initials:     liaisonInitials.trim().toUpperCase() || null,
       }).eq('id', job.id).then(r => r.error),
     ])
 
@@ -74,25 +76,26 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
         <div className="card">
           <h3 className="section-heading mb-4">Vehicle</h3>
           <InfoRow label="Registration" value={vehicle?.registration} />
-          <InfoRow label="Make" value={vehicle?.make} />
-          <InfoRow label="Model" value={vehicle?.model} />
-          <InfoRow label="Year" value={vehicle?.year} />
-          <InfoRow label="Colour" value={vehicle?.colour} />
-          <InfoRow label="VIN" value={vehicle?.vin} />
+          <InfoRow label="Make"         value={vehicle?.make} />
+          <InfoRow label="Model"        value={vehicle?.model} />
+          <InfoRow label="Year"         value={vehicle?.year} />
+          <InfoRow label="Colour"       value={vehicle?.colour} />
+          <InfoRow label="VIN"          value={vehicle?.vin} />
         </div>
         <div className="card">
           <h3 className="section-heading mb-4">Owner</h3>
-          <InfoRow label="Name" value={vehicle?.owner_name} />
+          <InfoRow label="Name"  value={vehicle?.owner_name} />
           <InfoRow label="Phone" value={vehicle?.owner_phone} />
           <InfoRow label="Email" value={vehicle?.owner_email} />
         </div>
         <div className="card">
           <h3 className="section-heading mb-4">Job</h3>
-          <InfoRow label="Job Type" value={job?.job_type === 'insurance' ? 'Insurance' : 'Private'} />
-          <InfoRow label="Insurer" value={insurer?.name} />
-          <InfoRow label="Priority" value={job?.priority} />
-          <InfoRow label="Check-In Date" value={job?.check_in_date ? new Date(job.check_in_date).toLocaleDateString('en-ZA') : null} />
+          <InfoRow label="Job Type"       value={job?.job_type === 'insurance' ? 'Insurance' : 'Private'} />
+          <InfoRow label="Insurer"        value={insurer?.name} />
+          <InfoRow label="Priority"       value={job?.priority} />
+          <InfoRow label="Check-In Date"  value={job?.check_in_date ? new Date(job.check_in_date).toLocaleDateString('en-ZA') : null} />
           <InfoRow label="Est. Completion" value={job?.estimated_completion ? new Date(job.estimated_completion).toLocaleDateString('en-ZA') : null} />
+          <InfoRow label="Liaison Officer (H/J/E)" value={job?.liaison_initials || null} />
           {job?.special_instructions && (
             <div className="pt-3 border-t border-gray-100 mt-2">
               <p className="text-xs text-gray-400 mb-1">Special Instructions</p>
@@ -104,7 +107,6 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
     )
   }
 
-  // Edit mode
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="card">
@@ -117,6 +119,7 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
           <div className="col-span-2"><label className="label">VIN</label><input type="text" value={vin} onChange={e => setVin(e.target.value.toUpperCase())} className="input-field" /></div>
         </div>
       </div>
+
       <div className="card">
         <h3 className="section-heading mb-4">Owner Details</h3>
         <div className="space-y-3">
@@ -127,13 +130,39 @@ export default function TabOverview({ job, vehicle, insurer, editMode, onSaved, 
           </div>
         </div>
       </div>
+
       <div className="card">
         <h3 className="section-heading mb-4">Job Details</h3>
         <div className="space-y-3">
-          <div><label className="label">Est. Completion</label><input type="date" value={estCompletion} onChange={e => setEstCompletion(e.target.value)} className="input-field" /></div>
-          <div><label className="label">Special Instructions</label><textarea value={specialInstructions} onChange={e => setSpecialInstructions(e.target.value)} rows={3} className="input-field resize-none" /></div>
+          <div>
+            <label className="label">Est. Completion</label>
+            <input type="date" value={estCompletion} onChange={e => setEstCompletion(e.target.value)} className="input-field" />
+          </div>
+
+          {/* SECTION: Liaison officer initials — shows as H/J/E column on floor monitor */}
+          <div>
+            <label className="label">Liaison Officer Initials (H/J/E)</label>
+            <input
+              type="text"
+              value={liaisonInitials}
+              onChange={e => setLiaisonInitials(e.target.value.toUpperCase())}
+              maxLength={5}
+              placeholder="e.g. HJE or LM"
+              className="input-field"
+              style={{ textTransform:'uppercase', letterSpacing:'2px', fontWeight:600 }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Initials of the liaison officer assigned to provide client feedback on this job. Shown on the floor monitor.
+            </p>
+          </div>
+
+          <div>
+            <label className="label">Special Instructions</label>
+            <textarea value={specialInstructions} onChange={e => setSpecialInstructions(e.target.value)} rows={3} className="input-field resize-none" />
+          </div>
         </div>
       </div>
+
       <div className="flex gap-3">
         <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2">
           {saving ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : null}

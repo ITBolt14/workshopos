@@ -12,6 +12,7 @@ import TabClaim       from './TabClaim'
 import TabStages      from './TabStages'
 import TabNotes       from './TabNotes'
 import TabAudit       from './TabAudit'
+import TabQuote       from './TabQuote'
 
 // SECTION: Tab config
 const TABS = [
@@ -20,6 +21,7 @@ const TABS = [
   { id: 'stages',    label: 'Stages'        },
   { id: 'notes',     label: 'Notes'         },
   { id: 'audit',     label: 'Audit Log'     },
+  { id: 'quote',      label: 'Quote'         },
   { id: 'estimating',label: 'Estimating'    },
 ]
 
@@ -145,6 +147,7 @@ export default function JobDetail() {
         {activeTab === 'stages'    && <TabStages    job={job} onJobUpdated={fetchJob} />}
         {activeTab === 'notes'     && <TabNotes     job={job} />}
         {activeTab === 'audit'     && <TabAudit     jobId={id} />}
+        {activeTab === 'quote'     && <TabQuote     job={job} vehicle={vehicle} insurer={insurer} />}
         {activeTab === 'estimating' && (
           <div className="card text-center py-12">
             <p className="text-gray-400 font-medium">No estimate yet</p>

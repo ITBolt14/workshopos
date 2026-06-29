@@ -1,10 +1,9 @@
 // src/portals/main/components/MainSidebar.jsx
-// Collapsible left sidebar with role-filtered navigation.
-
 import { useNavigate, NavLink } from 'react-router-dom'
 import {
   Wrench, LayoutDashboard, ClipboardList, MonitorCheck,
-  Users, FolderKanban, Settings, ChevronLeft, ChevronRight, LogOut
+  Users, FolderKanban, Settings, ChevronLeft, ChevronRight,
+  LogOut, BarChart2
 } from 'lucide-react'
 import { useAuth } from '../../../hooks/useAuth'
 
@@ -13,9 +12,16 @@ const NAV_SECTIONS = [
   {
     label: 'Main',
     items: [
-      { to: '/main',           icon: LayoutDashboard, label: 'Dashboard',      exact: true,  roles: [] },
-      { to: '/main/jobs',      icon: ClipboardList,   label: 'Jobs',           exact: false, roles: [] },
-      { to: '/main/monitor',   icon: MonitorCheck,    label: 'Floor Monitor',  exact: false, roles: [] },
+      { to: '/main',          icon: LayoutDashboard, label: 'Dashboard',     exact: true,  roles: [] },
+      { to: '/main/jobs',     icon: ClipboardList,   label: 'Jobs',          exact: false, roles: [] },
+      { to: '/main/monitor',  icon: MonitorCheck,    label: 'Floor Monitor', exact: false, roles: [] },
+    ],
+  },
+  {
+    label: 'Reports',
+    items: [
+      { to: '/main/reports/clocking', icon: BarChart2, label: 'Clocking Reports', exact: false,
+        roles: ['super_admin','owner','branch_manager','general_manager','manager'] },
     ],
   },
   {
